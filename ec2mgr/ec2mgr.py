@@ -19,76 +19,27 @@ def has_pending_snapshot(volume):
     snapshots = list(volume.snapshots.all())
     return snapshots and snapshots[0].state == 'pending'
 
+
+
 @click.group()
 def cli():
-    """Shotty manages snapshot and volumes"""
-
-### volumes functions
-@cli.group('volumes')
-def volumes():
-    """Commands for volumes"""
-
-@volumes.command('list')
-@click.option('--project', default=None,
-    help="Only instances for project (tag project:<name>)")
-
-def list_volumes(project):
-    "List EC2 volumes"
-
-    instances = filter_instances(project)
-
-    for i in instances:
-        for v in i.volumes.all():
-             print(",".join((
-             v.id,
-             i.id,
-             v.state,
-             str(v.size)+"GB",
-             v.encrypted and "Encrypted" or "Not Encrypted"
-             )))
-    return
-
-### snapshots functions
-@cli.group('snapshots')
-def snapshots():
-    """Commands for snapshots"""
-
-@snapshots.command('list')
-@click.option('--project', default=None,
-    help="Only instances for project (tag project:<name>)")
-@click.option('--all', 'list_all', default=False, is_flag=True,
-    help="List all snapshots for each volume, not just most recent one")
-
-def list_snapshots(project, list_all):
-    "List EC2 snapshots"
-
-    instances = filter_instances(project)
-
-    for i in instances:
-        for v in i.volumes.all():
-            for s in v.snapshots.all():
-                 print(",".join((
-                 s.id,
-                 v.id,
-                 i.id,
-                 s.state,
-                 s.progress,
-                 s.start_time.strftime("%c")
-                 )))
-                 if s.state == 'completed' and not list_all: break
-    return
+    """ec2mgr manages EC2 instances and their volumes and snapshot"""
 
 ### insatnces functions
 @cli.group('instances')
 def instances():
-    """Commands for instances"""
+    """Commands for managing instances"""
 
 @instances.command('list')
+@click.option('--department', default=None,
+    help="Only instances for project (tag department:<name>)")
 @click.option('--project', default=None,
     help="Only instances for project (tag project:<name>)")
 
-def list_insatnces(project):
+def list_insatnces(department, project):
     "List EC2 instances"
+    click.echo('Department: %s!' % department)
+    click.echo('Project: %s!' % project)
 
     instances = filter_instances(project)
 
@@ -165,6 +116,61 @@ def create_snapshots(project):
         print ("starting {0} after volume snapshots".format(i.id))
         i.start()
         i.wait_until_running()
+    return
+
+### volumes functions
+@cli.group('volumes')
+def volumes():
+    """Commands for managing volumes"""
+
+@volumes.command('list')
+@click.option('--project', default=None,
+    help="Only instances for project (tag project:<name>)")
+
+def list_volumes(project):
+    "List EC2 volumes"
+
+    instances = filter_instances(project)
+
+    for i in instances:
+        for v in i.volumes.all():
+             print(",".join((
+             v.id,
+             i.id,
+             v.state,
+             str(v.size)+"GB",
+             v.encrypted and "Encrypted" or "Not Encrypted"
+             )))
+    return
+
+### snapshots functions
+@cli.group('snapshots')
+def snapshots():
+    """Commands for managing snapshots"""
+
+@snapshots.command('list')
+@click.option('--project', default=None,
+    help="Only instances for project (tag project:<name>)")
+@click.option('--all', 'list_all', default=False, is_flag=True,
+    help="List all snapshots for each volume, not just most recent one")
+
+def list_snapshots(project, list_all):
+    "List EC2 snapshots"
+
+    instances = filter_instances(project)
+
+    for i in instances:
+        for v in i.volumes.all():
+            for s in v.snapshots.all():
+                 print(",".join((
+                 s.id,
+                 v.id,
+                 i.id,
+                 s.state,
+                 s.progress,
+                 s.start_time.strftime("%c")
+                 )))
+                 if s.state == 'completed' and not list_all: break
     return
 
 if __name__ == '__main__':
