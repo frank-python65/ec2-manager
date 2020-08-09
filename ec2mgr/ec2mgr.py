@@ -21,8 +21,8 @@ def has_pending_snapshot(volume):
 
 def filter_instances(department, project):
     instance = []
-    click.echo('Department: %s!' % department)
-    click.echo('Project: %s!' % project)
+    click.echo('Instance Filter-Department: %s!' % department)
+    click.echo('Instance Filter-Project: %s!' % project)
 
     if (department) and (project):
         #click.echo("Branch: (department) and (project)")
@@ -50,7 +50,7 @@ def has_pending_snapshot(volume):
 
 @click.group()
 def cli():
-    """ec2mgr manages EC2 instances and their volumes and snapshot"""
+    """ec2mgr manages EC2 instances and their volumes and snapshot based on Department and Project"""
 
 ### insatnces functions
 @cli.group('instances')
@@ -74,6 +74,7 @@ def list_insatnces(department, project):
         tags = {t['Key'] : t['Value'] for t in (i.tags or []) }
         print(','.join((
         i.id,
+        tags.get('Department', '<no department>'),
         tags.get('Project', '<no project>'),
         i.instance_type,
         i.placement['AvailabilityZone'],
@@ -125,30 +126,59 @@ def start_insatnces(department, project):
     return
 
 @instances.command('snapshot')
+@click.option('--consistency', default=None,
+    help="Use 'Force' will get application consistency snapshot by stop-snapshot-start runing instances")
 @click.option('--department', default=None,
     help="Only instances for department (tag department:<name>)")
 @click.option('--project', default=None,
     help="Only instances for project (tag project:<name>)")
 
-def create_snapshots(department, project):
+def create_snapshots(consistency, department, project):
     "Create snapshot for volumes of a gourp of instancs"
 
     instances = filter_instances(department, project)
 
     for i in instances:
-        print ("stopping {0} for volume snapshots".format(i.id))
-        i.stop()
-        i.wait_until_stopped()
+        i_status=i.state['Name']
+        #print(i.state)
+        #print ("Tags of {0} - {1}".format(i.id, i.tags))
+        #i_department = ""
+        #i_project = ""
+        #for tags in i.tags:
+        #    if tags["Key"] == 'Department':
+        #        i_department = tags["Value"]
+        #    if tags["Key"] == 'Project':
+        #        i_project = tags["Value"]
+        #click.echo ("Department: %s" % i_department)
+        #click.echo ("Project: %s" % i_project)
 
+        #tag_department=i.tags.get('Department', '<no department>')
+        #tag_project=tags.get('Project', '<no project>')
+        #print ("insatnce status: ", tag_department, tag_project, i_status)
+
+        if ((i_status == "running") and (consistency == "Force")):
+            print ("stopping {0} for app-consitency volume snapshots".format(i.id))
+            i.stop()
+            i.wait_until_stopped()
+        
         for v in i.volumes.all():
             if has_pending_snapshot(v):
                 print(" Skipping {0}, snapshot already in progress".format(v.id))
                 continue
-            print ("Creating snapshot of {0} of {1}".format(v.id, i.id))
-            v.create_snapshot(Description="Created by Snapshotalyzer")
-        print ("starting {0} after volume snapshots".format(i.id))
-        i.start()
-        i.wait_until_running()
+            print ("Creating snapshot of {0} of {1} ".format(v.id, i.id))
+            v.create_snapshot(Description='ec2mgr Snapshot of volume ({})'.format(v.id), 
+                TagSpecifications=[
+                    {
+                    'ResourceType': 'snapshot',
+                    'Tags' : v.tags,
+                    },
+                ],
+            )
+
+        if ((i_status == "running") and (consistency == "Force")):
+            print ("restarting {0} after app-consitency volume snapshots".format(i.id))
+            i.start()
+            i.wait_until_running()
     return
 
 ### volumes functions
