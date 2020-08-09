@@ -5,13 +5,40 @@ import click
 session = boto3.Session(profile_name='ec2mgr')
 ec2 = session.resource('ec2')
 
-def filter_instances(project):
+def filter_instancesold(project):
     instance = []
 
     if project:
         filters = [{'Name':'tag:Project', 'Values':[project]}]
         instances = ec2.instances.filter(Filters=filters)
     else:
+        instances = ec2.instances.all()
+    return instances
+
+def has_pending_snapshot(volume):
+    snapshots = list(volume.snapshots.all())
+    return snapshots and snapshots[0].state == 'pending'
+
+def filter_instances(department, project):
+    instance = []
+    click.echo('Department: %s!' % department)
+    click.echo('Project: %s!' % project)
+
+    if (department) and (project):
+        #click.echo("Branch: (department) and (project)")
+        filters = [{'Name':'tag:Department', 'Values':[department]}, 
+                    {'Name':'tag:Project', 'Values':[project]}]
+        instances = ec2.instances.filter(Filters=filters)
+    elif (department) and (not project):
+        #click.echo("Branch: (department) and (not project)")
+        filters = [{'Name':'tag:Department', 'Values':[department]}]
+        instances = ec2.instances.filter(Filters=filters)
+    elif (not department) and (project):
+        #click.echo("Branch: (not department) and (project)")
+        filters = [{'Name':'tag:Project', 'Values':[project]}]
+        instances = ec2.instances.filter(Filters=filters)
+    else:
+        #click.echo("Branch: (not department) and (not project)")        
         instances = ec2.instances.all()
     return instances
 
@@ -32,7 +59,7 @@ def instances():
 
 @instances.command('list')
 @click.option('--department', default=None,
-    help="Only instances for project (tag department:<name>)")
+    help="Only instances for department (tag department:<name>)")
 @click.option('--project', default=None,
     help="Only instances for project (tag project:<name>)")
 
@@ -41,7 +68,7 @@ def list_insatnces(department, project):
     click.echo('Department: %s!' % department)
     click.echo('Project: %s!' % project)
 
-    instances = filter_instances(project)
+    instances = filter_instances(department, project)
 
     for i in instances:
         tags = {t['Key'] : t['Value'] for t in (i.tags or []) }
@@ -56,13 +83,15 @@ def list_insatnces(department, project):
     return
 
 @instances.command('stop')
+@click.option('--department', default=None,
+    help="Only instances for department (tag department:<name>)")
 @click.option('--project', default=None,
     help="Only instances for project (tag project:<name>)")
 
-def stop_insatnces(project):
+def stop_insatnces(department, project):
     "Stop EC2 instances"
 
-    instances = filter_instances(project)
+    instances = filter_instances(department, project)
 
     for i in instances:
         print ("stopping {0} - {1}...".format(project,i.id))
@@ -75,13 +104,15 @@ def stop_insatnces(project):
     return
 
 @instances.command('start')
+@click.option('--department', default=None,
+    help="Only instances for department (tag department:<name>)")
 @click.option('--project', default=None,
     help="Only instances for project (tag project:<name>)")
 
-def start_insatnces(project):
+def start_insatnces(department, project):
     "Start EC2 instances"
 
-    instances = filter_instances(project)
+    instances = filter_instances(department, project)
 
     for i in instances:
         print ("starting {0} - {1}...".format(project,i.id))
@@ -94,13 +125,15 @@ def start_insatnces(project):
     return
 
 @instances.command('snapshot')
+@click.option('--department', default=None,
+    help="Only instances for department (tag department:<name>)")
 @click.option('--project', default=None,
     help="Only instances for project (tag project:<name>)")
 
-def create_snapshots(project):
+def create_snapshots(department, project):
     "Create snapshot for volumes of a gourp of instancs"
 
-    instances = filter_instances(project)
+    instances = filter_instances(department, project)
 
     for i in instances:
         print ("stopping {0} for volume snapshots".format(i.id))
@@ -124,13 +157,15 @@ def volumes():
     """Commands for managing volumes"""
 
 @volumes.command('list')
+@click.option('--department', default=None,
+    help="Only instances for department (tag department:<name>)")
 @click.option('--project', default=None,
     help="Only instances for project (tag project:<name>)")
 
-def list_volumes(project):
+def list_volumes(department, project):
     "List EC2 volumes"
 
-    instances = filter_instances(project)
+    instances = filter_instances(department, project)
 
     for i in instances:
         for v in i.volumes.all():
@@ -149,15 +184,17 @@ def snapshots():
     """Commands for managing snapshots"""
 
 @snapshots.command('list')
+@click.option('--department', default=None,
+    help="Only instances for department (tag department:<name>)")
 @click.option('--project', default=None,
     help="Only instances for project (tag project:<name>)")
 @click.option('--all', 'list_all', default=False, is_flag=True,
     help="List all snapshots for each volume, not just most recent one")
 
-def list_snapshots(project, list_all):
+def list_snapshots(department, project, list_all):
     "List EC2 snapshots"
 
-    instances = filter_instances(project)
+    instances = filter_instances(department, project)
 
     for i in instances:
         for v in i.volumes.all():
