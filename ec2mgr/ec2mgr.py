@@ -241,36 +241,6 @@ def list_snapshots(department, project, list_all):
                  if s.state == 'completed' and not list_all: break
     return
 
-@cli.group('snapshots')
-def snapshots():
-    """Commands for managing snapshots"""
-
-@snapshots.command('delete')
-@click.option('--department', default=None,
-    help="Only instances for department (tag department:<name>)")
-@click.option('--project', default=None,
-    help="Only instances for project (tag project:<name>)")
-@click.option('--older', 'list_all', default=False, is_flag=True,
-    help="List all snapshots for each volume, not just most recent one")
-
-def list_snapshots(department, project, list_all):
-    "List EC2 snapshots"
-
-    instances = filter_instances(department, project)
-
-    for i in instances:
-        for v in i.volumes.all():
-            for s in v.snapshots.all():
-                 print(",".join((
-                 s.id,
-                 v.id,
-                 i.id,
-                 s.state,
-                 s.progress,
-                 s.start_time.strftime("%c")
-                 )))
-                 if s.state == 'completed' and not list_all: break
-    return
 
 if __name__ == '__main__':
     cli()
